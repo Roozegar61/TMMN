@@ -1,0 +1,367 @@
+rm(list = ls())
+                library(mvtnorm)
+	library(MomTrunc)
+	library(cubature)
+	library(tmvtnorm)
+	
+	xi=xi0=c(1,2)
+	delta=delta0=matrix(c(1,1.5,1,-1),nc=2)
+	s=s0=matrix(c(2,1.2,1.2,1.4),nc=2)
+	mu=mu0=c(.5,.2)
+	
+	omega=omega0=matrix(c(2.5,1.5,1.5,1.2),nc=2)
+	Gamma=Gamma0=delta%*%omega%*%t(delta)+s
+	Lamda=Lamda0=omega-omega%*%t(delta)%*%solve(Gamma)%*%delta%*%omega
+
+	a=c(2,1.5)
+	b=c(5,4.5)
+	xi1=xi[1]
+	xi2=xi[2]
+	s1=s[1,1]
+	s2=s[2,2]
+	
+
+	
+cxia1=xi[2]+s[2,1]*(a[1]-xi[1])/s[1,1]
+cxia2=xi[1]+s[2,1]*(a[2]-xi[2])/s[2,2]
+cxib1=xi[2]+s[2,1]*(b[1]-xi[1])/s[1,1]
+cxib2=xi[1]+s[2,1]*(b[2]-xi[2])/s[2,2]
+cs1=s[2,2]-(s[2,1])^2/s[1,1]
+cs2=s[1,1]-(s[2,1])^2/s[2,2]
+cdelt1=delta[-1,]-(s[2,1]/s[1,1])*delta[1,]
+cdelt2=delta[-2,]-(s[2,1]/s[2,2])*delta[2,]
+comega1=omega-(1/Gamma[1,1])*omega%*%t(t(delta[1,]))%*%delta[1,]%*%omega
+comega2=omega-(1/Gamma[2,2])*omega%*%t(t(delta[2,]))%*%delta[2,]%*%omega
+mua1=mu+omega%*%t(t(delta[1,]))%*%((a[1]-xi1-delta[1,]%*%mu)/(delta[1,]%*%omega%*%t(t(delta[1,]))+s1))
+mua2=mu+omega%*%t(t(delta[2,]))%*%((a[2]-xi2-delta[2,]%*%mu)/(delta[2,]%*%omega%*%t(t(delta[2,]))+s2))
+mub1=mu+omega%*%t(t(delta[1,]))%*%((b[1]-xi1-delta[1,]%*%mu)/(delta[1,]%*%omega%*%t(t(delta[1,]))+s1))
+mub2=mu+omega%*%t(t(delta[2,]))%*%((b[2]-xi2-delta[2,]%*%mu)/(delta[2,]%*%omega%*%t(t(delta[2,]))+s2))
+	
+#--------
+m=mu
+normmean=function(m,s,a,b){
+cma1=m[2]+s[2,1]*(a[1]-m[1])/s[1,1]
+cma2=m[1]+s[2,1]*(a[2]-m[2])/s[2,2]
+cmb1=m[2]+s[2,1]*(b[1]-m[1])/s[1,1]
+cmb2=m[1]+s[2,1]*(b[2]-m[2])/s[2,2]
+cs1=s[2,2]-(s[2,1])^2/s[1,1]
+cs2=s[1,1]-(s[2,1])^2/s[2,2]
+
+alpha=pmvnorm(lower=a,upper=b,mean=m,sigma=s)
+qa1=dnorm(a[1],m[1],sqrt(s[1,1]))*(pnorm(b[2], cma1,sqrt(cs1))-pnorm(a[2],cma1,sqrt(cs1)))
+qa2=dnorm(a[2],m[2],sqrt(s[2,2]))*(pnorm(b[1], cma2,sqrt(cs2))-pnorm(a[1],cma2,sqrt(cs2)))
+qb1=dnorm(b[1],m[1],sqrt(s[1,1]))*(pnorm(b[2], cmb1,sqrt(cs1))-pnorm(a[2],cmb1,sqrt(cs1)))
+qb2=dnorm(b[2],m[2],sqrt(s[2,2]))*(pnorm(b[1], cmb2,sqrt(cs2))-pnorm(a[1],cmb2,sqrt(cs2)))
+qa=c(qa1,qa2)
+qb=c(qb1,qb2)
+q=qa-qb
+	e1.p=m+(s%*%q)/alpha
+	H12=(dmvnorm(c(a[1],a[2]),mean=m,sigma=s)-dmvnorm(c(a[1],b[2]),mean=m,sigma=s)
+	-dmvnorm(c(b[1],a[2]),mean=m,sigma=s)+dmvnorm(c(b[1],b[2]),mean=m,sigma=s))
+	H=matrix(c(0,H12,H12,0),ncol=2,byrow=T)
+	GH=s%*%H
+	d11=((a[1]-m[1])/s[1,1])*qa1-((b[1]-m[1])/s[1,1])*qb1-(GH[1,1]/s[1,1])
+	d22=((a[2]-m[2])/s[2,2])*qa2-((b[2]-m[2])/s[2,2])*qb2-(GH[2,2]/s[2,2])
+	D=diag(c(d11,d22),2)
+	e=m%*%t(s%*%q)+s%*%q%*%t(m)+s%*%(H+D)%*%s
+	e2.p=s+m%*%t(m)+e/alpha
+return(list("e1.p"=e1.p,"e2.p"=e2.p))
+	}
+normmean(m,s,a,b)
+
+onlymeanTMD(lower = a,upper = b,mu=m,Sigma=s,dist="normal")
+#-----------------------------------------------------------
+
+v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+
+	dCSN2=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	out=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out}
+Fbar=adaptIntegrate(dCSN2,lowerLimit=a,upperLimit=b)$integral
+
+#--------------------------------numerical	
+
+
+dTSTNMMs2=function(y) ifelse(y[1]>a[1]&y[2]>a[2]&y[1]<b[1]&y[2]<b[2],dCSN2(y)/Fbar,0)
+
+d1TMSTNMMs2=function(y) y[1]*dTSTNMMs2(y)
+d2TMSTNMMs2=function(y) y[2]*dTSTNMMs2(y)
+d3TMSTNMMs2=function(y) y[1]^2*dTSTNMMs2(y)
+d4TMSTNMMs2=function(y) y[2]^2*dTSTNMMs2(y)
+d5TMSTNMMs2=function(y) y[1]*y[2]*dTSTNMMs2(y)
+
+mean1=adaptIntegrate(d1TMSTNMMs2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+mean2=adaptIntegrate(d2TMSTNMMs2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+mean3=adaptIntegrate(d3TMSTNMMs2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+mean4=adaptIntegrate(d4TMSTNMMs2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+mean5=adaptIntegrate(d5TMSTNMMs2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+
+numericalmean1=c(mean1,mean2)
+numericalmean1
+numericalmean2=matrix(c(mean3,mean5,mean5,mean4),2)
+numericalmean2
+#---------------------------------------------------------------------------------
+
+m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+
+	dLTCSN21=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e1.p[1,1]
+	out1=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out2=out1*m1y
+	out2}
+
+	dLTCSN22=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e1.p[2,1]
+	out1=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out2=out1*m1y
+	out2}
+	
+	e1=adaptIntegrate(dLTCSN21,lowerLimit=a,upperLimit=b)$integral
+	e2=adaptIntegrate(dLTCSN22,lowerLimit=a,upperLimit=b)$integral
+	e=c(e1,e2)
+	
+
+dLTCSN211=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e2.p[1,1]
+	out1=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out2=out1*m1y
+	out2}
+
+	dLTCSN222=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e2.p[2,2]
+	out1=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out2=out1*m1y
+	out2}
+	
+	dLTCSN212=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	muy=as.vector(mu+omega%*%t(delta)%*%solve(Gamma)%*%(z-delta%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e2.p[1,2]
+	out1=v2*dmvnorm(c(y[1],y[2]), mean = xi+delta%*%mu, sigma=Gamma)/v1
+	out2=out1*m1y
+	out2}
+
+	e11=adaptIntegrate(dLTCSN211,lowerLimit=a,upperLimit=b)$integral
+	e22=adaptIntegrate(dLTCSN222,lowerLimit=a,upperLimit=b)$integral
+	e12=adaptIntegrate(dLTCSN212,lowerLimit=a,upperLimit=b)$integral
+	E=matrix(c(e11,e12,e12,e22),nc=2)
+
+
+	xi=xi1;s=s1;delta=delta0[1,]
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	
+
+	dCSN1=function(y){
+	z=y-xi
+	muy=as.vector(mu+omega%*%t(t(delta))%*%solve(Gamma)%*%(z-t(delta)%*%mu))
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	out=v2*dnorm(y,xi+t(delta)%*%mu,sqrt(Gamma))/v1
+	out}
+	fa1=dCSN1(a[1])
+	fb1=dCSN1(b[1])
+	
+	dLTCSN1=function(y){
+	z=y-xi
+	muy=as.vector(mu+omega%*%t(t(delta))%*%solve(Gamma)%*%(z-t(delta)%*%mu))
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e1.p[1,1]
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	out1=v2*dnorm(y,xi+t(delta)%*%mu,sqrt(Gamma))/v1
+	out2=out1*m1y/m1
+	out2}
+	g11a1=dLTCSN1(a[1])
+	g11b1=dLTCSN1(b[1])
+
+	dLTCSN2=function(y){
+	z=y-xi
+	muy=as.vector(mu+omega%*%t(t(delta))%*%solve(Gamma)%*%(z-t(delta)%*%mu))
+	m1y=normmean(m=muy,s=Lamda,a=rep(0,2),b=rep(10000,2))$e1.p[2,1]
+	v2=pmvnorm(upper=muy,mean = rep(0,2),sigma=Lamda,algorithm = TVPACK(),keepAttr=FALSE)
+	out1=v2*dnorm(y,xi+t(delta)%*%mu,sqrt(Gamma))/v1
+	out2=out1*m1y/m2
+	out2}
+	g12a1=dLTCSN2(a[1])
+	g12b1=dLTCSN2(b[1])
+
+
+
+
+	xi=xi2;s=s2;delta=delta0[2,]
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	fa2=dCSN1(a[2])
+	fb2=dCSN1(b[2])
+	
+	g21a2=dLTCSN1(a[2])
+	g21b2=dLTCSN1(b[2])
+	g22a2=dLTCSN2(a[2])
+	g22b2=dLTCSN2(b[2])
+
+
+
+	xi=cxia1;s=cs1;delta=cdelt1;mu=as.vector(mua1);omega=comega1
+	v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+	m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+	Fbara1=adaptIntegrate(dCSN1,lowerLimit=a[2],upperLimit=b[2])$integral
+	Gbar11a1=adaptIntegrate(dLTCSN1,lowerLimit=a[2],upperLimit=b[2])$integral
+	Gbar12a1=adaptIntegrate(dLTCSN2,lowerLimit=a[2],upperLimit=b[2])$integral
+	
+
+
+	xi=cxia2;s=cs2;delta=cdelt2;mu=as.vector(mua2);omega=comega2
+	v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+	m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+	Fbara2=adaptIntegrate(dCSN1,lowerLimit=a[1],upperLimit=b[1])$integral
+	Gbar21a2=adaptIntegrate(dLTCSN1,lowerLimit=a[1],upperLimit=b[1])$integral
+	Gbar22a2=adaptIntegrate(dLTCSN2,lowerLimit=a[1],upperLimit=b[1])$integral
+	
+
+	xi=cxib1;s=cs1;delta=cdelt1;mu=as.vector(mub1);omega=comega1
+	v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+	m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+	Fbarb1=adaptIntegrate(dCSN1,lowerLimit=a[2],upperLimit=b[2])$integral
+	Gbar11b1=adaptIntegrate(dLTCSN1,lowerLimit=a[2],upperLimit=b[2])$integral
+	Gbar12b1=adaptIntegrate(dLTCSN2,lowerLimit=a[2],upperLimit=b[2])$integral
+
+	xi=cxib2;s=cs2;delta=cdelt2;mu=as.vector(mub2);omega=comega2
+	v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+	Gamma=t(delta)%*%omega%*%t(t(delta))+s
+	Lamda=omega-omega%*%t(t(delta))%*%solve(Gamma)%*%delta%*%omega
+	m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+	m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+	Fbarb2=adaptIntegrate(dCSN1,lowerLimit=a[1],upperLimit=b[1])$integral
+	Gbar21b2=adaptIntegrate(dLTCSN1,lowerLimit=a[1],upperLimit=b[1])$integral
+	Gbar22b2=adaptIntegrate(dLTCSN2,lowerLimit=a[1],upperLimit=b[1])$integral
+	
+
+
+q1a1=fa1*Fbara1
+q1b1=fb1*Fbarb1
+q1a2=fa2*Fbara2
+q1b2=fb2*Fbarb2
+
+q11=q1a1-q1b1
+q12=q1a2-q1b2
+	q1=as.matrix(c(q11,q12))
+
+	xi=xi0
+	s=s0
+	delta=delta0
+	mu=mu0
+	omega=omega0
+	Gamma=Gamma0
+	Lamda=Lamda0
+	m1=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[1,1]
+	m2=normmean(m=mu,s=omega,rep(0,2),rep(10000,2))$e1.p[2,1]
+	v1=pmvnorm(lower=c(-Inf,-Inf),upper=mu,mean = rep(0,2),sigma=omega,algorithm = GenzBretz(),keepAttr=FALSE)
+
+
+
+e=as.matrix(e)
+exactmean1=xi+(delta%*%e+s%*%q1)%*%(1/Fbar)
+
+
+	A11a1=g11a1*Gbar11a1*m1
+	A11b1=g11b1*Gbar11b1*m1
+	A12a1=g12a1*Gbar12a1*m2
+	A12b1=g12b1*Gbar12b1*m2
+	A21a2=g21a2*Gbar21a2*m1
+	A21b2=g21b2*Gbar21b2*m1
+	A22a2=g22a2*Gbar22a2*m2
+	A22b2=g22b2*Gbar22b2*m2
+	A11=A11a1-A11b1
+	A12=A12a1-A12b1
+	A21=A21a2-A21b2
+	A22=A22a2-A22b2
+	A=matrix(c(A11,A12,A21,A22),ncol=2,byrow=T)
+
+	H12=dCSN2(c(a[1],a[2]))-dCSN2(c(a[1],b[2]))-dCSN2(c(b[1],a[2]))+dCSN2(c(b[1],b[2]))
+	H=matrix(c(0,H12,H12,0),ncol=2,byrow=T)
+	GH=s%*%H
+
+d11=((a[1]-xi[1])/s[1,1])*q1a1-((b[1]-xi[1])/s[1,1])*q1b1-(t(delta[1,])%*%A[1,])/s[1,1]-(GH[1,1]/s[1,1])
+d22=((a[2]-xi[2])/s[2,2])*q1a2-((b[2]-xi[2])/s[2,2])*q1b2-(t(delta[2,])%*%A[2,])/s[2,2]-(GH[2,2]/s[2,2])
+	D=diag(c(d11,d22),2)
+
+	s1=xi%*%t(delta%*%e)+delta%*%e%*%t(xi)
+	s2=delta%*%E%*%t(delta)
+	s3=xi%*%t(s%*%q1)+s%*%q1%*%t(xi)
+	s4=delta%*%t(s%*%A)+s%*%A%*%t(delta)
+
+	exactmean2=s+xi%*%t(xi)+(s1+s2+s3+s4+s%*%(H+D)%*%s)*(1/Fbar)
+	exactmean1
+	exactmean2
+
+###############################################################
+#simulation
+rCSN=function(k){
+i=1
+e=matrix(0,ncol=k,nrow=2)
+j=1
+while(j<=k){
+i=i+1
+x=rmvnorm(1, mean = c(0,0), sigma=s)
+x=matrix(x)
+v=rtmvnorm(n=1, mean = mu, sigma=omega, lower=rep(0,length = length(mu)))
+v=matrix(v)
+y=xi+delta%*%v+x
+if(y[1]>a[1]&y[2]>a[2]&y[1]<b[1]&y[2]<b[2]){
+e[,j]=y
+j=j+1
+}
+}
+e}
+
+
+
+####MSE
+N=100
+re=500
+ 	B=matrix(0,nrow=5,ncol=re)
+	A=matrix(0,nrow=5,ncol=re)
+	for(i in 1:re){
+	y=rCSN(N)
+	empricalmean1=apply(y,1,mean)
+	empricalmean2=(1/N)*y%*%t(y)
+	A[1:2,i]=c(empricalmean1[1],empricalmean1[2])
+	A[3:5,i]=c(empricalmean2[1,1],empricalmean2[2,2],empricalmean2[1,2])
+	B[1:2,i]=c((empricalmean1[1]-exactmean1[1])^2,(empricalmean1[2]-exactmean1[2])^2)
+	B[3:5,i]=c((empricalmean2[1,1]-exactmean2[1,1])^2,
+(empricalmean2[2,2]-exactmean2[2,2])^2,(empricalmean2[1,2]-exactmean2[1,2])^2)
+	}
+
+	rowMeans(A)
+	mse=rowMeans(B)
+	mse

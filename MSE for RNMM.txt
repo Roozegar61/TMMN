@@ -1,0 +1,217 @@
+	library(mvtnorm)
+	library(MomTrunc)
+	library(cubature)
+	xi=xi0=c(1,2)
+	g=g0=c(1,.5)
+	s=matrix(c(2,1.2,1.2,1.4),nc=2)
+	mu=mu0=0
+	w=w0=1
+	n=n0=1
+	a=c(2,1.5)
+	b=c(5,4.5)
+	sig=s
+	xi1=xi[1]
+	xi2=xi[2]
+	s1=s[1,1]
+	s2=s[2,2]
+	g1=g[1]
+	g2=g[2]
+	
+cxia1=xi[2]+s[2,1]*(a[1]-xi[1])/s[1,1]
+cxia2=xi[1]+s[2,1]*(a[2]-xi[2])/s[2,2]
+cxib1=xi[2]+s[2,1]*(b[1]-xi[1])/s[1,1]
+cxib2=xi[1]+s[2,1]*(b[2]-xi[2])/s[2,2]
+cs1=s[2,2]-(s[2,1])^2/s[1,1]
+cs2=s[1,1]-(s[2,1])^2/s[2,2]
+cg1=g[2]-s[2,1]*g[1]/s[1,1]
+cg2=g[1]-s[2,1]*g[2]/s[2,2]
+mua1=((w^2)*g[1]*(a[1]-xi[1])+mu*s[1,1])/((w^2)*(g1^2)+s[1,1])
+mua2=((w^2)*g[2]*(a[2]-xi[2])+mu*s[2,2])/((w^2)*(g2^2)+s[2,2])
+mub1=((w^2)*g[1]*(b[1]-xi[1])+mu*s[1,1])/((w^2)*(g1^2)+s[1,1])
+mub2=((w^2)*g[2]*(b[2]-xi[2])+mu*s[2,2])/((w^2)*(g2^2)+s[2,2])
+w1=sqrt(((w^2)*s[1,1])/((w^2)*(g1^2)+s[1,1]))
+w2=sqrt(((w^2)*s[2,2])/((w^2)*(g2^2)+s[2,2]))
+
+
+
+
+
+	kf=function(mu,w,n) {k1=w*pnorm(mu/w)*exp((mu^2)/(2*w^2))
+	k1*momentsTMD(n,0,Inf,mu=mu,Sigma=w^2,dist="normal")[n+1,2]}
+	
+	dSTNMM2=function(y){
+	z=c(y[1]-xi[1],y[2]-xi[2])
+	z=as.matrix(z)
+	mus=((w^2)*(t(g)%*%solve(sig)%*%z)+mu)/((w^2)*(t(g)%*%solve(sig)%*%g)+1)
+	ws=sqrt(w^2/((w^2)*(t(g)%*%solve(sig)%*%g)+1))
+	k=kf(mu,w,n)
+	ks=kf(mus,ws,n)
+	out=(ks/k)*dmvnorm(c(y[1],y[2]), mean = xi, sigma=sig)
+	out}
+
+
+
+value = momentsTMD(n,lower=0,upper=Inf,mu=mu,Sigma=w^2,dist="normal")[n+1,2]
+Fbar=adaptIntegrate(dSTNMM2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+n=n0+1
+value1 = momentsTMD(n,lower=0,upper=Inf,mu=mu,Sigma=w^2,dist="normal")[n+1,2]
+Fbar1=adaptIntegrate(dSTNMM2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+n=n0+2
+value2 = momentsTMD(n,lower=0,upper=Inf,mu=mu,Sigma=w^2,dist="normal")[n+1,2]
+Fbar2=adaptIntegrate(dSTNMM2,lowerLimit=c(a[1],a[2]),upperLimit=c(b[1],b[2]))$integral
+
+e1=(Fbar1*value1)/(Fbar*value)
+e2=(Fbar2*value2)/(Fbar*value)
+
+
+	n=n0
+	dSTNMM1=function(y){
+	z=y-xi
+	mus=(w^2*g*(sig^(-1))*z+mu)/(w^2*g*(sig^(-1))*g+1)
+	ws=sqrt((w^2)/((w^2)*g*(sig^(-1))*g+1))
+	k=kf(mu,w,n)
+	ks=kf(mus,ws,n)
+	out=(ks/k)*dnorm(y,  xi, sqrt(sig))
+	out}
+dSTNMMs1=function(y) sapply(y,dSTNMM1)
+
+xi=xi1;sig=s1;g=g1
+fa1=dSTNMM1(a[1])
+fb1=dSTNMM1(b[1])
+n=n0+1
+fa11=dSTNMM1(a[1])
+fb11=dSTNMM1(b[1])
+
+
+xi=xi2;sig=s2;g=g2;n=n0
+fa2=dSTNMM1(a[2])
+fb2=dSTNMM1(b[2])
+n=n0+1
+fa21=dSTNMM1(a[2])
+fb21=dSTNMM1(b[2])
+
+
+xi=cxia1;sig=cs1;g=cg1;mu=mua1;w=w1;n=n0
+Fbara1=adaptIntegrate(dSTNMM1,lowerLimit=a[2],upperLimit=b[2])$integral
+n=n0+1
+Fbara11=adaptIntegrate(dSTNMM1,lowerLimit=a[2],upperLimit=b[2])$integral
+
+xi=cxib1;sig=cs1;g=cg1;mu=mub1;w=w1;n=n0
+Fbarb1=adaptIntegrate(dSTNMM1,lowerLimit=a[2],upperLimit=b[2])$integral
+n=n0+1
+Fbarb11=adaptIntegrate(dSTNMM1,lowerLimit=a[2],upperLimit=b[2])$integral
+
+xi=cxia2;sig=cs2;g=cg2;mu=mua2;w=w2;n=n0
+Fbara2=adaptIntegrate(dSTNMM1,lowerLimit=a[1],upperLimit=b[1])$integral
+n=n0+1
+Fbara21=adaptIntegrate(dSTNMM1,lowerLimit=a[1],upperLimit=b[1])$integral
+
+xi=cxib2;sig=cs2;g=cg2;mu=mub2;w=w2;n=n0
+Fbarb2=adaptIntegrate(dSTNMM1,lowerLimit=a[1],upperLimit=b[1])$integral
+n=n0+1
+Fbarb21=adaptIntegrate(dSTNMM1,lowerLimit=a[1],upperLimit=b[1])$integral
+
+q1a1=fa1*Fbara1
+q1b1=fb1*Fbarb1
+q1a2=fa2*Fbara2
+q1b2=fb2*Fbarb2
+q11=q1a1-q1b1
+q12=q1a2-q1b2
+	q1=as.matrix(c(q11,q12))
+
+q2a1=fa11*Fbara11*(value1/value)
+q2b1=fb11*Fbarb11*(value1/value)
+q2a2=fa21*Fbara21*(value1/value)
+q2b2=fb21*Fbarb21*(value1/value)
+
+q21=q2a1-q2b1
+q22=q2a2-q2b2
+	q2=as.matrix(c(q21,q22))
+
+	xi=xi0
+	sig=s
+	g=g0
+	mu=mu0
+	w=w0
+	n=n0
+
+exactmean1=xi+e1*g+(1/Fbar)*(sig%*%q1)
+
+H12=dSTNMM2(c(a[1],a[2]))-dSTNMM2(c(a[1],b[2]))-dSTNMM2(c(b[1],a[2]))+dSTNMM2(c(b[1],b[2]))
+
+	H=matrix(c(0,H12,H12,0),ncol=2,byrow=T)
+GH=s%*%H
+
+d11=((a[1]-xi[1])/s[1,1])*q1a1-((b[1]-xi[1])/s[1,1])*q1b1-(g1/s[1,1])*q2a1+(g1/s[1,1])*q2b1-(GH[1,1]/s[1,1])
+d22=((a[2]-xi[2])/s[2,2])*q1a2-((b[2]-xi[2])/s[2,2])*q1b2-(g2/s[2,2])*q2a2+(g2/s[2,2])*q2b2-(GH[2,2]/s[2,2])
+		D=diag(c(d11,d22),2)
+	v1=xi%*%t(s%*%q1)+s%*%q1%*%t(xi)
+	v2=g%*%t(s%*%q2)+s%*%q2%*%t(g)
+	v3=(xi%*%t(g)+g%*%t(xi))*e1
+	v4=(g%*%t(g))*e2
+	exactmean2=s+xi%*%t(xi)+v3+v4+(v1+v2+s%*%(H+D)%*%s)*(1/Fbar)
+
+#-----------------------------------------------------------------------------------------------------
+
+#simulation
+
+	rSLTN=function(N){
+	x=rep(0,N)
+	i=1
+	while(i<=N){
+	y=rgamma(1,n+1,1)
+	if(runif(1)<sqrt(2*pi*w^2)*dnorm(y,mu+w^2,w)){
+	x[i]=y
+	i=i+1}}
+	x}
+#x=rnorm(1000,0,sqrt(sig))
+#v=rSLTN(1000)
+#y=xi+g*v+x
+
+rRNMM=function(k){
+i=1
+e=matrix(0,ncol=k,nrow=2)
+j=1
+while(j<=k){
+i=i+1
+x=rmvnorm(1, mean = c(0,0), sigma=sig)
+v=rSLTN(1)
+y=xi+g*v+x
+y=as.matrix(y)
+if(y[1]>a[1]&y[2]>a[2]&y[1]<b[1]&y[2]<b[2]){e[,j]=y
+j=j+1
+i=i+1}}
+e}
+N=10
+y=rRNMM(N)
+empricalmean1=apply(y,1,mean)
+empricalmean2=(1/N)*y%*%t(y)
+
+
+as.matrix(empricalmean1)
+exactmean1
+
+empricalmean2
+exactmean2
+
+
+N=100
+re=500
+ 	B=matrix(0,nrow=5,ncol=re)
+	A=matrix(0,nrow=5,ncol=re)
+	for(i in 1:re){
+	y=rRNMM(N)
+	empricalmean1=apply(y,1,mean)
+	empricalmean2=(1/N)*y%*%t(y)
+	A[1:2,i]=c(empricalmean1[1],empricalmean1[2])
+	A[3:5,i]=c(empricalmean2[1,1],empricalmean2[2,2],empricalmean2[1,2])
+	B[1:2,i]=c((empricalmean1[1]-exactmean1[1])^2,(empricalmean1[2]-exactmean1[2])^2)
+	B[3:5,i]=c((empricalmean2[1,1]-exactmean2[1,1])^2,
+(empricalmean2[2,2]-exactmean2[2,2])^2,(empricalmean2[1,2]-exactmean2[1,2])^2)
+	}
+
+	rowMeans(A)
+	mse=rowMeans(B)
+	mse
+
+
